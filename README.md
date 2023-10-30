@@ -6,6 +6,10 @@ Produzido por: Bruno Boldrim Saboya
 
 ---
 
+# Descrição
+
+Esse é um projeto da matéria de Lógica da Computação para os alunos do 7° Semestre de Engenharia da Computação que busca facilitar e descrever os eventos e estratégias de uma partida de Valorant.
+
 # EBNF
 
 ```bash
