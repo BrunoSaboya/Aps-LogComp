@@ -1,0 +1,10 @@
+var x int
+var y int
+
+x = 3 renato 2
+
+if x mundial 6 {
+	y = 10 menezes 2
+}
+
+Println(y)

@@ -1,202 +1,198 @@
-from Tokenizer import *
-from abc import ABC, abstractmethod
+from abc import ABC
+from SymbolTable import SymbolTable
 
-class Node:
+class Node(ABC):
     def __init__(self, value, children):
         self.value = value
         self.children = children
+    i = 0
 
-    @abstractmethod
+    @staticmethod
+    def new_id():
+        Node.i += 1
+        return Node.i
 
-    def evaluate(self, symbol_table):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
         pass
-
-class SymbolTable:
-    def __init__(self) -> None:
-        self.symbol_table = {}
-
-    def getter(self, ident):
-        if ident in self.symbol_table:
-            return self.symbol_table[ident]
-        else:
-            raise TypeError("Erro")
-    
-    def setter(self, id, value):
-        if value[0] == self.symbol_table[id][0]:
-            if id in self.symbol_table:
-                self.symbol_table[id] = value
-            else:
-                raise TypeError("Error: Variable not declared")
-        else:
-            raise TypeError("Error: Type mismatch")
-    
-    def create(self, id, type):
-        if id not in self.symbol_table:
-            self.symbol_table[id] = (type, None)
-        else:
-            raise TypeError("Error: Variable already declared")  
-
-class FuncTable():
-    func_table = {}
-
-    def getter(id):
-        if id in FuncTable.func_table:
-            return FuncTable.func_table[id]
-        else:
-            raise TypeError("Erro")
-    
-    def setter(id, value):
-        if value[0] == FuncTable[id][0]:
-            if id in FuncTable.func_table:
-                FuncTable.func_table[id] = value
-            else:
-                raise TypeError("Erro")
-        else:
-            raise TypeError("Erro")
-            
-    def create(id, type, node):
-        if id in FuncTable.func_table:
-            raise TypeError("Erro")
-        else:
-            FuncTable.func_table[id] = (node, type)
-
-class Block(Node):
-    def evaluate(self, symbol_table):
-        for child in self.children:
-            if isinstance(child, Return):
-                return child.evaluate(symbol_table)
-            child.evaluate(symbol_table)
-
-class Program(Node):
-    def evaluate(self, symbol_table):
-        for child in self.children:
-            if isinstance(child, Return):
-                return child.evaluate(symbol_table)
-            child.evaluate(symbol_table)
-
-class Print(Node):
-    def evaluate(self, symbol_table):
-        print(self.children[0].evaluate(symbol_table)[1])
-
-class Identifier(Node):
-    def evaluate(self, symbol_table):
-        return symbol_table.getter(self.value)
-
-class Assignment(Node): 
-    def evaluate(self, symbol_table):
-        symbol_table.setter(self.children[0].value, self.children[1].evaluate(symbol_table))
 
 class BinOp(Node):
-    def evaluate(self, symbol_table):
-        left = self.children[0].evaluate(symbol_table)
-        right = self.children[1].evaluate(symbol_table)
-        if self.value == "+" and left[0] == right[0] and left[0] == "int":
-            return (left[0], left[1] + right[1])
-        
-        elif self.value == "-" and left[0] == right[0] and left[0] == "int":
-            return (left[0], left[1] - right[1])
-        
-        elif self.value == "*" and left[0] == right[0] and left[0] == "int":
-            return (left[0], left[1] * right[1])
-        
-        elif self.value == "/" and left[0] == right[0] and left[0] == "int":
-            return (left[0], left[1] // right[1])
-        
-        elif self.value == "==" and left[0] == right[0]:
-            return (left[0], int(left[1] == right[1]))
-        
-        elif self.value == ">" and left[0] == right[0]:
-            return (left[0], int(left[1] > right[1]))
-        
-        elif self.value == "<" and left[0] == right[0]:
-            return (left[0], int(left[1] < right[1]))
-        
-        elif self.value == "&&" and left[0] == right[0] and left[0] == "int":
-            return (left[0], int(left[1] and right[1]))
-        
-        elif self.value == "||" and left[0] == right[0] and left[0] == "int":
-            return (left[0], int(left[1] or right[1]))
-        
-        elif self.value == ".":
-            return ("string", str(left[1]) + str(right[1]))
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        right_result = self.children[1].evaluate(symbol_table, asm_code)
+        asm_code.write(f"MOV EAX, {right_result[0]}")
+        asm_code.write("PUSH EAX")
+        left_result = self.children[0].evaluate(symbol_table, asm_code)
+        asm_code.write(f"MOV EAX, {left_result[0]}")
+        asm_code.write("POP EBX")
+
+        if self.value == "DOT":
+            result = (str(left_result[0]) + str(right_result[0]), "STRING", "")
+
+        elif left_result[1] == right_result[1]:
+            if self.value == "PLUS":
+                asm_code.write("ADD EAX, EBX")
+                result = (left_result[0] + right_result[0], "INT", "")
+            elif self.value == "MINUS":
+                asm_code.write("SUB EAX, EBX")
+                result = (left_result[0] - right_result[0], "INT", "")
+            elif self.value == "MULT":
+                asm_code.write("IMUL EBX")
+                result = (left_result[0] * right_result[0], "INT", "")
+            elif self.value == "DIV":
+                if right_result[0] == 0:
+                    raise ZeroDivisionError("Division by zero")
+                asm_code.write("IDIV EBX")
+                result = (left_result[0] // right_result[0], "INT", "")
+            elif self.value == "EQUALITY":
+                asm_code.write("CMP EAX, EBX")
+                asm_code.write("CALL binop_je")
+                if left_result[0] == right_result[0]:
+                    result = (1, "INT", "")
+                else:
+                    result = (0, "INT", "")
+            elif self.value == "AND":
+                asm_code.write("AND EAX, EBX")
+                if left_result[0] and right_result[0]:
+                    result = (1, "INT", "")
+                else:
+                    result = (0, "INT", "")
+            elif self.value == "OR":
+                asm_code.write("OR EAX, EBX")
+                if left_result[0] or right_result[0]:
+                    result = (1, "INT", "")
+                else:
+                    result = (0, "INT", "")
+            elif self.value == "GREATER":
+                asm_code.write("CMP EAX, EBX")
+                asm_code.write("CALL binop_jg")
+                if left_result[0] > right_result[0]:
+                    result = (1, "INT", "")
+                else:
+                    result = (0, "INT", "")
+            elif self.value == "LESS":
+                asm_code.write("CMP EAX, EBX")
+                asm_code.write("CALL binop_jl")
+                if left_result[0] < right_result[0]:
+                    result = (1, "INT", "")
+                else:
+                    result = (0, "INT", "")
         else:
-            raise TypeError("Erro")
+            raise Exception("Invalid operator")
+        return result
 
 class UnOp(Node):
-    def evaluate(self, symbol_table):
-        left = self.children[0].evaluate(symbol_table)
-        if self.value == "+" and left[0] == "int":
-            return ("int", left[1])
-        elif self.value == "-" and left[0] == "int":
-            return ("int", -left[1])
-        elif self.value == "!" and left[0] == "int":
-            return ("int", int(not left[1]))
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        child_result = self.children[0].evaluate(symbol_table, asm_code)
+        if child_result[1] != "INT":
+            raise Exception("Type mismatch")
+
+        if self.value == "PLUS":
+            return (child_result[0], "INT", "")
+        elif self.value == "MINUS":
+            return (-child_result[0], "INT", "")
+        elif self.value == "NOT":
+            return (not child_result[0], "INT", "")
+        else:
+            raise Exception("Invalid operator")
 
 class IntVal(Node):
-    def evaluate(self, symbol_table):
-        return ("int", self.value)
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        asm_code.write(f"MOV EAX, {self.value}")
+        return (self.value, "INT", "")
+
+class StringVal(Node):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        return (self.value, "STRING", "")
 
 class NoOp(Node):
-    def evaluate(self, symbol_table):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
         pass
 
-class Scanln(Node):
-    def evaluate(self, symbol_table):
-        return ("int", int(input()))
+
+class Assign(Node):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        asm_code.write(
+            f"MOV [EBP-{symbol_table.getter(self.children[0].value)[2]}], EAX")
+        symbol_table.setter(self.children[0].value, self.children[1].evaluate(symbol_table, asm_code)[0])
+
+class Block(Node):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        for child in self.children:
+            child.evaluate(symbol_table, asm_code)
+
+
+class Print(Node):
+     def evaluate(self, symbol_table: SymbolTable, asm_code):
+        self.children[0].evaluate(symbol_table, asm_code)
+        asm_code.write("PUSH EAX")
+        asm_code.write("PUSH formatout")
+        asm_code.write("call printf")
+        asm_code.write("ADD ESP, 8")
+
+
+class Identifier(Node):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        asm_code.write(f"MOV EAX, [EBP-{symbol_table.getter(self.value)[2]}]")
+        return symbol_table.getter(self.value)
+
+
+class ForLoop(Node):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        current_i = Node.new_id()
+        loop_start_label = f"LOOP_{current_i}"
+        exit_label = f"EXIT_{current_i}"
+
+        self.children[0].evaluate(symbol_table, asm_code)
+        asm_code.write(f"{loop_start_label}:")
+        condition_temp = Node.new_id()
+        self.children[1].evaluate(symbol_table, asm_code)
+        asm_code.write(f"MOV [EBP-{condition_temp}], EBX")
+        asm_code.write(f"CMP DWORD [EBP-{condition_temp}], 5")
+        asm_code.write(f"JE {exit_label}")
+        self.children[3].evaluate(symbol_table, asm_code)
+        self.children[2].evaluate(symbol_table, asm_code)
+        asm_code.write(f"JMP {loop_start_label}")
+        asm_code.write(f"{exit_label}:")
+
 
 class If(Node):
-    def evaluate(self, symbol_table):
-        if self.children[0].evaluate(symbol_table):
-            self.children[1].evaluate(symbol_table)
-        elif len(self.children) == 3:
-            self.children[2].evaluate(symbol_table)
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        current_i = Node.new_id()
+        asm_code.write(f"IF_{current_i}:")
+        self.children[0].evaluate(symbol_table, asm_code)
+        asm_code.write("CMP EAX, False")
+        asm_code.write(f"JE ELSE_{current_i}")
+        self.children[1].evaluate(symbol_table, asm_code)
+        asm_code.write(f"JMP END_IF_{current_i}")
+        asm_code.write(f"ELSE_{current_i}:")
+        asm_code.write(f"END_IF_{current_i}:")
 
-class For(Node):
-    def evaluate(self, symbol_table):
-        self.children[0].evaluate(symbol_table)
-        while self.children[1].evaluate(symbol_table)[1]:
-            self.children[3].evaluate(symbol_table)
-            self.children[2].evaluate(symbol_table)
+
+class IfElse(Node):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        current_i = Node.new_id()
+        asm_code.write(f"IF_{current_i}:")
+        self.children[0].evaluate(symbol_table, asm_code)
+        asm_code.write("CMP EAX, False")
+        asm_code.write(f"JE ELSE_{current_i}")
+        self.children[1].evaluate(symbol_table, asm_code)
+        asm_code.write(f"JMP END_IF_{current_i}")
+        asm_code.write(f"ELSE_{current_i}:")
+        self.children[2].evaluate(symbol_table, asm_code)
+        asm_code.write(f"END_IF_{current_i}:")
+
+class Scan(Node):
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        scanint = int(input())
+        asm_code.write(f"PUSH {scanint}")
+        asm_code.write("PUSH formatin")
+        asm_code.write("call scanf")
+        asm_code.write("ADD ESP, 8")
+        asm_code.write(f"MOV EAX, DWORD [ {scanint} ]")
+        return (scanint, "INT", "")
 
 class VarDec(Node):
-    def evaluate(self, symbol_table):
-        if len(self.children) == 2:
-            symbol_table.create(self.children[0].value, self.value)
-            symbol_table.setter(self.children[0].value, self.children[1].evaluate(symbol_table))
-        else:
-            symbol_table.create(self.children[0].value, self.value)
-
-class FuncDec(Node):
-    def evaluate(self, symbol_table):
-        func_name = self.children[0].children[0].value
-        func_type = self.children[0].value
-        FuncTable.create(id=func_name, type=func_type, node=self)
-    
-class FuncCall(Node):
-    def evaluate(self, symbol_table):
-        func_name = self.value
-        func_node, type = FuncTable.getter(func_name)
-        func_st = SymbolTable()
-        for i in range(len(self.children)):
-            func_node.children[i+1].evaluate(func_st)
-            func_st.setter(func_node.children[i+1].children[0].value, self.children[i].evaluate(symbol_table))
-        
-        ret_block = func_node.children[-1].evaluate(func_st)
-        if ret_block is not None:
-            if type == ret_block[0]:
-                return ret_block
-            else:
-                raise TypeError("Erro")
-
-class StrVal(Node):
-    def evaluate(self, symbol_table):
-        return ("string", self.value)
-
-class Return(Node):
-    def evaluate(self, symbol_table):
-        return self.children[0].evaluate(symbol_table)
-
-class Token:
-    def __init__(self, type, value):
-        self.type = type
-        self.value = value
+    def evaluate(self, symbol_table: SymbolTable, asm_code):
+        asm_code.write("PUSH DWORD 0")
+        symbol_table.create(self.children[0], self.value)
+        if len(self.children) > 1:
+            symbol_table.setter(self.children[0], self.children[1].evaluate(symbol_table, asm_code)[0])

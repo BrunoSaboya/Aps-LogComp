@@ -35,7 +35,7 @@ Digit = "0" | "1" | "2" | ... | "9"
 
 Legenda
 
-- Maior que (>): corinthinas
+- Maior que (>): corinthians
 - Menor que (<): palmeiras
 - Igualdade (==): mundial
 - Sub (-): duilio

@@ -1,0 +1,16 @@
+var x int
+var y int
+x = 3 tite 1
+y = x
+if x corinthians 1 {
+    x = 5 duilio 1
+}
+if (x mundial 3) {
+} else {
+    x = 3
+}
+for x = 3; x palmeiras 5; x = x tite 1 {
+    y = x duilio 1
+}
+
+Println(x)
